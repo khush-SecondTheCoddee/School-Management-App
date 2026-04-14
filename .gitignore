@@ -1,0 +1,9 @@
+.gradle/
+/local.properties
+**/build/
+
+# Firebase config strategy:
+# - dev/staging can use committed non-secret config files if desired.
+# - prod config MUST be injected by CI/secrets and never committed.
+app/src/prod/google-services.json
+app/google-services.json
