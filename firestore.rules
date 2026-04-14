@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     function userExists() {
-      return isSignedIn() && userDoc().exists();
+      return isSignedIn() && exists(userDocPath());
     }
 
     function isActive() {
@@ -51,6 +51,102 @@ service cloud.firestore {
       return canManageSchool(schoolId) || schoolRole(schoolId) in ['TEACHER', 'STAFF'];
     }
 
+    function canReadSchoolPath(schoolId, collectionName) {
+      return isSchoolMember(schoolId)
+        && (
+          collectionName in ['students', 'teachers', 'staff', 'classes', 'attendance', 'homework', 'results', 'announcements', 'read_models', 'results_finalization', 'payroll', 'critical_attendance_overrides']
+        );
+    }
+
+    function immutableOnUpdate(fieldName) {
+      return resource == null
+        || !(fieldName in resource.data)
+        || !(fieldName in request.resource.data)
+        || request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    function idMatches(fieldName, expectedId) {
+      return !(fieldName in request.resource.data) || request.resource.data[fieldName] == expectedId;
+    }
+
+    function hasValidMarkRange() {
+      return !('marks' in request.resource.data)
+        || (
+          request.resource.data.marks is number
+          && request.resource.data.marks >= 0
+          && request.resource.data.marks <= 100
+          && (
+            !('maxMarks' in request.resource.data)
+            || (
+              request.resource.data.maxMarks is number
+              && request.resource.data.maxMarks > 0
+              && request.resource.data.maxMarks <= 100
+              && request.resource.data.marks <= request.resource.data.maxMarks
+            )
+          )
+        );
+    }
+
+    function hasValidAttendanceRange() {
+      return !('attendancePercentage' in request.resource.data)
+        || (
+          request.resource.data.attendancePercentage is number
+          && request.resource.data.attendancePercentage >= 0
+          && request.resource.data.attendancePercentage <= 100
+        );
+    }
+
+    function hasValidAttendanceCounts() {
+      return !('sessionsPresent' in request.resource.data)
+        || !('sessionsTotal' in request.resource.data)
+        || (
+          request.resource.data.sessionsPresent is int
+          && request.resource.data.sessionsTotal is int
+          && request.resource.data.sessionsPresent >= 0
+          && request.resource.data.sessionsTotal >= 0
+          && request.resource.data.sessionsPresent <= request.resource.data.sessionsTotal
+        );
+    }
+
+    function isValidResultStatus(status) {
+      return status in ['DRAFT', 'PUBLISHED', 'FINALIZED'];
+    }
+
+    function isAllowedResultStatusTransition(fromStatus, toStatus) {
+      return toStatus == fromStatus
+        || (fromStatus == 'DRAFT' && toStatus in ['PUBLISHED', 'FINALIZED'])
+        || (fromStatus == 'PUBLISHED' && toStatus == 'FINALIZED');
+    }
+
+    function hasValidResultStatusTransition() {
+      return !('status' in request.resource.data)
+        || (
+          isValidResultStatus(request.resource.data.status)
+          && (
+            resource == null
+            || !('status' in resource.data)
+            || isAllowedResultStatusTransition(resource.data.status, request.resource.data.status)
+          )
+        );
+    }
+
+    function isValidAttendanceStatus(status) {
+      return status in ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+    }
+
+    function hasValidAttendanceStatusTransition() {
+      return !('status' in request.resource.data)
+        || (
+          isValidAttendanceStatus(request.resource.data.status)
+          && (
+            resource == null
+            || !('status' in resource.data)
+            || resource.data.status in ['ABSENT', 'LATE']
+            || request.resource.data.status == resource.data.status
+          )
+        );
+    }
+
     // Global profile map with school memberships.
     match /users/{uid} {
       allow read: if isActive() && (request.auth.uid == uid || isSuperAdmin());
@@ -68,54 +164,91 @@ service cloud.firestore {
       allow write: if canManageSchool(schoolId);
 
       match /students/{studentId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'students');
+        allow create, update, delete: if canManageSchool(schoolId)
+          && idMatches('studentId', studentId)
+          && immutableOnUpdate('studentId');
       }
 
       match /teachers/{teacherId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'teachers');
+        allow create, update, delete: if canManageSchool(schoolId)
+          && idMatches('teacherId', teacherId)
+          && immutableOnUpdate('teacherId');
       }
 
       match /staff/{staffId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'staff');
+        allow create, update, delete: if canManageSchool(schoolId)
+          && idMatches('staffId', staffId)
+          && immutableOnUpdate('staffId');
       }
 
       match /classes/{classId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'classes');
+        allow create, update, delete: if canManageSchool(schoolId)
+          && idMatches('classId', classId)
+          && immutableOnUpdate('classId');
       }
 
       match /attendance/{attendanceId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canWriteAcademicRecords(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'attendance');
+        allow create, update, delete: if canWriteAcademicRecords(schoolId)
+          && idMatches('attendanceId', attendanceId)
+          && immutableOnUpdate('attendanceId')
+          && hasValidAttendanceRange()
+          && hasValidAttendanceCounts()
+          && hasValidAttendanceStatusTransition();
       }
 
       match /homework/{homeworkId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canWriteAcademicRecords(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'homework');
+        allow create, update, delete: if canWriteAcademicRecords(schoolId)
+          && idMatches('homeworkId', homeworkId)
+          && immutableOnUpdate('homeworkId');
       }
 
       match /results/{resultId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canWriteAcademicRecords(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'results');
+        allow create, update, delete: if canWriteAcademicRecords(schoolId)
+          && idMatches('resultId', resultId)
+          && immutableOnUpdate('resultId')
+          && hasValidMarkRange()
+          && hasValidResultStatusTransition();
       }
 
       match /announcements/{announcementId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'announcements');
+        allow create, update, delete: if canManageSchool(schoolId)
+          && idMatches('announcementId', announcementId)
+          && immutableOnUpdate('announcementId');
       }
 
       // Denormalized read models for dashboard cards.
       match /read_models/{modelId} {
-        allow read: if isSchoolMember(schoolId);
-        allow write: if canManageSchool(schoolId);
+        allow read: if canReadSchoolPath(schoolId, 'read_models');
+        allow create, update, delete: if canManageSchool(schoolId);
 
         match /dashboard_cards/{cardId} {
-          allow read: if isSchoolMember(schoolId);
-          allow write: if canManageSchool(schoolId);
+          allow read: if canReadSchoolPath(schoolId, 'read_models');
+          allow create, update, delete: if canManageSchool(schoolId);
         }
+      }
+
+      // Sensitive collections are backend-controlled only.
+      match /results_finalization/{docId} {
+        allow read: if canReadSchoolPath(schoolId, 'results_finalization');
+        allow write: if false;
+      }
+
+      match /payroll/{docId} {
+        allow read: if canManageSchool(schoolId);
+        allow write: if false;
+      }
+
+      match /critical_attendance_overrides/{docId} {
+        allow read: if canManageSchool(schoolId);
+        allow write: if false;
       }
     }
 
