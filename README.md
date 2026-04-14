@@ -58,3 +58,21 @@ Run everything locally:
 ```bash
 ./gradlew ktlintCheck detekt lintDebug test
 ```
+
+## Backend RBAC and admin operations
+
+This repository now includes a backend reference implementation under `backend/`:
+
+- `backend/admin/bootstrap-super-admin.js`: one-time secure bootstrap for first `SUPER_ADMIN`.
+- `backend/rbac/roles.js`: canonical roles (`SUPER_ADMIN`, `MANAGEMENT`, `TEACHER`, `STUDENT`, `PARENT`, `STAFF`).
+- `backend/rbac/permissions.js`: feature/action permissions matrix (`read`, `write`, `approve`, `export`).
+- `backend/middleware/requirePermission.js`: endpoint guard that verifies ID token and reads role from Firestore, never from client payload.
+- `backend/api/adminRoutes.js`: admin endpoints for role assignment and activation/deactivation, with audit log writes.
+- `firestore.rules`: server-enforced security rules aligned to RBAC.
+
+Bootstrap example:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json \
+node backend/admin/bootstrap-super-admin.js --email=admin@school.edu --name="Founding Admin"
+```
