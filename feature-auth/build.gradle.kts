@@ -35,8 +35,13 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":data"))
     implementation(platform(libs.androidx.compose.bom))
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
+    implementation(libs.androidx.security.crypto)
 
     detektPlugins(libs.detekt.formatting)
 }
