@@ -5,59 +5,125 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function getUserDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
-    // Server-side role comes from Firestore users collection, not from custom client claims payload.
-    function userRole() {
-      return isSignedIn() && getUserDoc().exists() ? getUserDoc().data.role : null;
+    function userDoc() {
+      return get(userDocPath());
+    }
+
+    function userExists() {
+      return isSignedIn() && userDoc().exists();
     }
 
     function isActive() {
-      return isSignedIn() && getUserDoc().exists() && getUserDoc().data.isActive == true;
+      return userExists() && userDoc().data.isActive == true;
+    }
+
+    function userRole() {
+      return userExists() ? userDoc().data.role : null;
     }
 
     function isSuperAdmin() {
       return userRole() == 'SUPER_ADMIN';
     }
 
-    function isManagementOrSuperAdmin() {
-      return userRole() in ['SUPER_ADMIN', 'MANAGEMENT'];
+    function membership(schoolId) {
+      return userExists() && userDoc().data.schoolMemberships[schoolId] != null
+        ? userDoc().data.schoolMemberships[schoolId]
+        : null;
     }
 
-    // Users can read self, but only admin roles can modify roles/activation.
+    function isSchoolMember(schoolId) {
+      return isActive() && membership(schoolId) != null && membership(schoolId).isActive == true;
+    }
+
+    function schoolRole(schoolId) {
+      return isSchoolMember(schoolId) ? membership(schoolId).role : null;
+    }
+
+    function canManageSchool(schoolId) {
+      return isSuperAdmin() || schoolRole(schoolId) in ['MANAGEMENT', 'PRINCIPAL'];
+    }
+
+    function canWriteAcademicRecords(schoolId) {
+      return canManageSchool(schoolId) || schoolRole(schoolId) in ['TEACHER', 'STAFF'];
+    }
+
+    // Global profile map with school memberships.
     match /users/{uid} {
-      allow read: if isActive() && (request.auth.uid == uid || isManagementOrSuperAdmin());
+      allow read: if isActive() && (request.auth.uid == uid || isSuperAdmin());
       allow create: if isSuperAdmin();
-      allow update: if isManagementOrSuperAdmin()
+      allow update: if isSuperAdmin()
                     || (request.auth.uid == uid
                         && request.resource.data.role == resource.data.role
-                        && request.resource.data.isActive == resource.data.isActive);
+                        && request.resource.data.isActive == resource.data.isActive
+                        && request.resource.data.schoolMemberships == resource.data.schoolMemberships);
       allow delete: if isSuperAdmin();
     }
 
-    // Only management/super-admin can write audit logs. Everyone else denied.
+    match /schools/{schoolId} {
+      allow read: if isSchoolMember(schoolId);
+      allow write: if canManageSchool(schoolId);
+
+      match /students/{studentId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+      }
+
+      match /teachers/{teacherId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+      }
+
+      match /staff/{staffId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+      }
+
+      match /classes/{classId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canWriteAcademicRecords(schoolId);
+      }
+
+      match /homework/{homeworkId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canWriteAcademicRecords(schoolId);
+      }
+
+      match /results/{resultId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canWriteAcademicRecords(schoolId);
+      }
+
+      match /announcements/{announcementId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+      }
+
+      // Denormalized read models for dashboard cards.
+      match /read_models/{modelId} {
+        allow read: if isSchoolMember(schoolId);
+        allow write: if canManageSchool(schoolId);
+
+        match /dashboard_cards/{cardId} {
+          allow read: if isSchoolMember(schoolId);
+          allow write: if canManageSchool(schoolId);
+        }
+      }
+    }
+
+    // Only management/super-admin can write audit logs.
     match /audit_logs/{logId} {
-      allow read: if isManagementOrSuperAdmin();
-      allow create: if isManagementOrSuperAdmin();
+      allow read: if isSuperAdmin();
+      allow create: if isSuperAdmin();
       allow update, delete: if false;
-    }
-
-    // Example domain collections protected by role-aware checks.
-    match /attendance/{docId} {
-      allow read: if isActive();
-      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER', 'STAFF'];
-    }
-
-    match /homework/{docId} {
-      allow read: if isActive();
-      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER'];
-    }
-
-    match /results/{docId} {
-      allow read: if isActive();
-      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER'];
     }
   }
 }

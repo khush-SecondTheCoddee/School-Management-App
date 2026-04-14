@@ -76,3 +76,24 @@ Bootstrap example:
 GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json \
 node backend/admin/bootstrap-super-admin.js --email=admin@school.edu --name="Founding Admin"
 ```
+
+## Firestore multi-school schema (v2)
+
+The project now uses school-scoped collections under `schools/{schoolId}`:
+
+- `students`, `teachers`, `staff`, `classes`, `attendance`, `homework`, `results`, `announcements`
+- denormalized dashboard cards at `schools/{schoolId}/read_models/dashboard/dashboard_cards/{cardId}`
+- global user profiles at `users/{uid}` with a `schoolMemberships` map
+
+See `docs/firestore-schema-v2.md` for schema details and migration/validation workflow.
+
+### Schema migration and validation
+
+```bash
+node scripts/firestore/migrate_to_school_scoped.js --defaultSchoolId=school_demo --dryRun=true
+node scripts/firestore/validate_schema_v2.js --limit=500
+```
+
+### Firestore indexes
+
+Composite and field index definitions are maintained in `firestore.indexes.json`.
