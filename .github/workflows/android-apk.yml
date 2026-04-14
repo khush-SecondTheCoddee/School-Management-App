@@ -36,6 +36,17 @@ jobs:
           mkdir -p app/src/prod
           echo "${{ secrets.PROD_GOOGLE_SERVICES_JSON }}" | base64 -d > app/src/prod/google-services.json
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firestore rules test dependencies
+        run: npm ci
+
+      - name: Firestore security rules tests
+        run: npm run test:firestore-rules
+
       - name: Check formatting
         run: ./gradlew ktlintCheck
 
