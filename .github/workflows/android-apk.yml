@@ -39,6 +39,9 @@ jobs:
       - name: Check formatting
         run: ./gradlew ktlintCheck
 
+      - name: Validate Firebase setup
+        run: ./scripts/validate_firebase_setup.sh
+
       - name: Static analysis
         run: ./gradlew detekt lintDevDebug
 
