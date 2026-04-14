@@ -1,0 +1,63 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Server-side role comes from Firestore users collection, not from custom client claims payload.
+    function userRole() {
+      return isSignedIn() && getUserDoc().exists() ? getUserDoc().data.role : null;
+    }
+
+    function isActive() {
+      return isSignedIn() && getUserDoc().exists() && getUserDoc().data.isActive == true;
+    }
+
+    function isSuperAdmin() {
+      return userRole() == 'SUPER_ADMIN';
+    }
+
+    function isManagementOrSuperAdmin() {
+      return userRole() in ['SUPER_ADMIN', 'MANAGEMENT'];
+    }
+
+    // Users can read self, but only admin roles can modify roles/activation.
+    match /users/{uid} {
+      allow read: if isActive() && (request.auth.uid == uid || isManagementOrSuperAdmin());
+      allow create: if isSuperAdmin();
+      allow update: if isManagementOrSuperAdmin()
+                    || (request.auth.uid == uid
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.isActive == resource.data.isActive);
+      allow delete: if isSuperAdmin();
+    }
+
+    // Only management/super-admin can write audit logs. Everyone else denied.
+    match /audit_logs/{logId} {
+      allow read: if isManagementOrSuperAdmin();
+      allow create: if isManagementOrSuperAdmin();
+      allow update, delete: if false;
+    }
+
+    // Example domain collections protected by role-aware checks.
+    match /attendance/{docId} {
+      allow read: if isActive();
+      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER', 'STAFF'];
+    }
+
+    match /homework/{docId} {
+      allow read: if isActive();
+      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER'];
+    }
+
+    match /results/{docId} {
+      allow read: if isActive();
+      allow write: if isActive() && userRole() in ['SUPER_ADMIN', 'MANAGEMENT', 'TEACHER'];
+    }
+  }
+}
