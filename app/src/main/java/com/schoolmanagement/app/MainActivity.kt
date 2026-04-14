@@ -21,6 +21,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.schoolmanagement.feature.auth.AuthBackendAdapter
+import com.schoolmanagement.feature.auth.AuthGate
+import com.schoolmanagement.feature.auth.AuthSessionStorage
 import com.schoolmanagement.feature.dashboard.DashboardEntry
 
 class MainActivity : ComponentActivity() {
@@ -28,7 +33,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                AppShell()
+                val adapter = remember {
+                    AuthBackendAdapter(
+                        auth = FirebaseAuth.getInstance(),
+                        firestore = FirebaseFirestore.getInstance(),
+                        storage = AuthSessionStorage(applicationContext)
+                    )
+                }
+                AuthGate(adapter = adapter) {
+                    AppShell()
+                }
             }
         }
     }
