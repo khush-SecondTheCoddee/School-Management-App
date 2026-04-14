@@ -1,37 +1,60 @@
 # School Management System (Android)
 
-A modern Android app scaffold for a school ecosystem with role-based experiences for:
+A modular Android scaffold for a school ecosystem with explicit environment variants and quality gates.
 
-- Students
-- Teachers
-- Management
-- Parents
+## Modules
 
-## Highlights
+- `app`: UI shell and top-level navigation.
+- `core`: shared Result wrappers and logging utilities.
+- `data`: repository layer and future Firebase/remote/local data sources.
+- `feature-auth`
+- `feature-dashboard`
+- `feature-attendance`
+- `feature-homework`
+- `feature-results`
+- `feature-notifications`
 
-- **Role switcher** for instant dashboard switching.
-- **Student dashboard** with attendance, GPA and advisor details.
-- **Teacher workspace** with load and feedback summaries.
-- **Management command center** with institution-level KPIs and announcements.
-- **Parent companion** for at-a-glance student progress.
-- **Live bulletin publishing** to simulate institutional notifications.
+## Build variants
 
-## Stack
+`app` now defines one flavor dimension (`environment`) with:
 
-- Kotlin
-- Jetpack Compose (Material 3)
-- AndroidX ViewModel-style state holder (lightweight in-memory)
+- `dev`
+- `staging`
+- `prod`
 
-## Run
+Examples:
 
-1. Open in Android Studio (Jellyfish+ recommended).
-2. Let Gradle sync.
-3. Run the `app` configuration on an emulator or device (API 26+).
+- `./gradlew :app:assembleDevDebug`
+- `./gradlew :app:assembleStagingDebug`
+- `./gradlew :app:assembleProdRelease`
 
-## Next steps to make it production-grade
+## Firebase `google-services.json` strategy
 
-- Add secure authentication (student/teacher/parent/admin)
-- Integrate a backend (Firebase/Supabase/custom API)
-- Add real-time messaging, attendance scanner, exam module
-- Offline-first storage with Room
-- Analytics and AI assistant for personalized interventions
+- Place per-environment files in:
+  - `app/src/dev/google-services.json`
+  - `app/src/staging/google-services.json`
+  - `app/src/prod/google-services.json`
+- **Never commit `prod` secrets**. `.gitignore` blocks `app/src/prod/google-services.json`.
+- In CI, inject production JSON from a secret and write it during the workflow only when needed.
+
+Example CI step:
+
+```bash
+echo "$PROD_GOOGLE_SERVICES_JSON" | base64 -d > app/src/prod/google-services.json
+```
+
+## Dependency management
+
+All versions are centralized in `gradle/libs.versions.toml` (Version Catalog).
+
+## Static analysis / quality
+
+- `ktlint` for formatting/style checks
+- `detekt` for Kotlin static analysis
+- Android lint for Android modules
+
+Run everything locally:
+
+```bash
+./gradlew ktlintCheck detekt lintDebug test
+```

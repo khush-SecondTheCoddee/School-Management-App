@@ -15,4 +15,14 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "SchoolManagementApp"
-include(":app")
+include(
+    ":app",
+    ":core",
+    ":data",
+    ":feature-auth",
+    ":feature-dashboard",
+    ":feature-attendance",
+    ":feature-homework",
+    ":feature-results",
+    ":feature-notifications"
+)
