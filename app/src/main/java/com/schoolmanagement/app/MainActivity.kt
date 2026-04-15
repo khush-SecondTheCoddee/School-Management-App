@@ -15,6 +15,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +29,8 @@ import com.schoolmanagement.feature.auth.AuthGate
 import com.schoolmanagement.feature.auth.AuthSessionStorage
 import com.schoolmanagement.feature.attendance.AttendanceEntry
 import com.schoolmanagement.feature.dashboard.DashboardEntry
+import com.schoolmanagement.feature.notifications.NotificationsFeature
+import com.schoolmanagement.feature.notifications.NotificationsInbox
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,10 +45,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 AuthGate(adapter = adapter) {
-                    AppShell()
+                    AppShell(initialRoute = intent?.getStringExtra(EXTRA_NOTIFICATION_ROUTE) ?: NotificationRouteStore.latestRoute)
                 }
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_NOTIFICATION_ROUTE = "notification_route"
     }
 }
 
@@ -59,8 +66,15 @@ enum class AppDestination {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppShell() {
+private fun AppShell(initialRoute: String?) {
     var destination by remember { mutableStateOf(AppDestination.Dashboard) }
+    var pendingRoute by remember(initialRoute) { mutableStateOf(initialRoute) }
+
+    LaunchedEffect(initialRoute) {
+        if (!initialRoute.isNullOrBlank()) {
+            destination = AppDestination.Notifications
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -74,6 +88,14 @@ private fun AppShell() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            pendingRoute?.let {
+                Text(
+                    text = "Deep link route: $it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+
             SingleChoiceSegmentedButtonRow {
                 AppDestination.entries.forEachIndexed { index, item ->
                     SegmentedButton(
@@ -93,7 +115,18 @@ private fun AppShell() {
                 AppDestination.Attendance -> AttendanceEntry()
                 AppDestination.Homework -> Text("Homework feature module")
                 AppDestination.Results -> Text("Results feature module")
-                AppDestination.Notifications -> Text("Notifications feature module")
+                AppDestination.Notifications -> NotificationsInbox(
+                    initialItems = NotificationsFeature.sampleInbox(),
+                    onDeepLinkRoute = { route ->
+                        pendingRoute = route
+                        destination = when {
+                            route.startsWith("attendance") -> AppDestination.Attendance
+                            route.startsWith("homework") -> AppDestination.Homework
+                            route.startsWith("results") -> AppDestination.Results
+                            else -> AppDestination.Notifications
+                        }
+                    },
+                )
             }
         }
     }

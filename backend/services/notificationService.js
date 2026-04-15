@@ -1,5 +1,8 @@
 const admin = require('firebase-admin');
 
+const { enqueueNotification } = require('./notificationDispatcherService');
+const { NotificationTypes } = require('./notificationTypes');
+
 async function sendAttendanceNotification({ user, status, dateKey }) {
   const fcmTokens = new Set();
 
@@ -23,29 +26,40 @@ async function sendAttendanceNotification({ user, status, dateKey }) {
     });
   }
 
-  if (!fcmTokens.size) {
+  const userIds = [user.uid, ...parentIds].filter(Boolean);
+
+  if (!fcmTokens.size && !userIds.length) {
     return { sent: 0, reason: 'No FCM tokens found for student/parents' };
   }
 
-  const message = {
-    notification: {
-      title: 'Attendance Alert',
-      body: `${user.displayName || 'Student'} marked ${status.toUpperCase()} on ${dateKey}`,
+  const enqueueResult = await enqueueNotification({
+    type: NotificationTypes.ATTENDANCE_ALERT,
+    locale: user.preferredLocale || 'en',
+    templateContext: {
+      studentName: user.displayName || 'Student',
+      status: status.toUpperCase(),
+      date: dateKey,
+    },
+    target: {
+      schoolId: user.schoolId,
+      classId: user.classId,
+      role: 'parent',
+      userIds,
+      tokens: Array.from(fcmTokens),
     },
     data: {
-      type: 'attendance_status',
       status,
       date: dateKey,
       studentUid: user.uid,
     },
-    tokens: Array.from(fcmTokens),
-  };
-
-  const response = await admin.messaging().sendEachForMulticast(message);
+    route: `attendance/${user.uid}/${dateKey}`,
+  });
 
   return {
-    sent: response.successCount,
-    failed: response.failureCount,
+    queued: 1,
+    jobId: enqueueResult.jobId,
+    targetedUsers: userIds.length,
+    directTokens: fcmTokens.size,
   };
 }
 
