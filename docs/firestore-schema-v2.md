@@ -19,8 +19,13 @@
 - `schools/{schoolId}/classes/{classId}`
 - `schools/{schoolId}/attendance/{attendanceId}`
 - `schools/{schoolId}/homework/{homeworkId}`
+  - `submissions/{studentUid}` (student submissions and grading status)
 - `schools/{schoolId}/results/{resultId}`
 - `schools/{schoolId}/announcements/{announcementId}`
+- `schools/{schoolId}/parent_links/{parentUid}_{studentUid}`
+  - parent/student linkage for homework visibility
+- `schools/{schoolId}/notification_queue/{notificationId}`
+  - queued reminders (e.g., overdue homework)
 
 ### Denormalized read models
 - `schools/{schoolId}/read_models/dashboard_cards/{cardId}`
@@ -39,3 +44,9 @@ See `firestore.indexes.json` for:
 ## Migration and validation
 - migration script: `scripts/firestore/migrate_to_school_scoped.js`
 - validator script: `scripts/firestore/validate_schema_v2.js`
+
+## Homework and submission lifecycle
+- Teachers/academic staff create and edit homework with `dueAt`, `attachmentRefs`, and `plagiarismMetadataHook` fields.
+- Students submit via `submissions/{studentUid}` with `submittedAt`, `status`, and optional text/file references.
+- Parent accounts read child progress using `parent_links` and submission status lookups.
+- Backend reminder jobs scan overdue homework and enqueue notifications under `notification_queue`.

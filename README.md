@@ -68,6 +68,8 @@ This repository now includes a backend reference implementation under `backend/`
 - `backend/rbac/permissions.js`: feature/action permissions matrix (`read`, `write`, `approve`, `export`).
 - `backend/middleware/requirePermission.js`: endpoint guard that verifies ID token and reads role from Firestore, never from client payload.
 - `backend/api/adminRoutes.js`: admin endpoints for role assignment and activation/deactivation, with audit log writes.
+- `backend/api/homeworkRoutes.js`: homework lifecycle APIs (teacher create/edit, student submissions, parent visibility), plus an overdue reminder job endpoint.
+- `backend/services/homeworkService.js`: payload normalization/validation, plagiarism metadata hooks, and reminder queue orchestration.
 - `firestore.rules`: server-enforced security rules aligned to RBAC.
 
 Bootstrap example:

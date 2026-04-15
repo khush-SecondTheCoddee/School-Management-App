@@ -54,8 +54,13 @@ service cloud.firestore {
     function canReadSchoolPath(schoolId, collectionName) {
       return isSchoolMember(schoolId)
         && (
-          collectionName in ['students', 'teachers', 'staff', 'classes', 'attendance', 'homework', 'results', 'announcements', 'read_models', 'results_finalization', 'payroll', 'critical_attendance_overrides']
+          collectionName in ['students', 'teachers', 'staff', 'classes', 'attendance', 'homework', 'results', 'announcements', 'read_models', 'results_finalization', 'payroll', 'critical_attendance_overrides', 'parent_links', 'notification_queue']
         );
+    }
+
+    function isParentLinkedToStudent(schoolId, studentUid) {
+      return schoolRole(schoolId) == 'PARENT'
+        && exists(/databases/$(database)/documents/schools/$(schoolId)/parent_links/$(request.auth.uid + '_' + studentUid));
     }
 
     function immutableOnUpdate(fieldName) {
@@ -206,6 +211,15 @@ service cloud.firestore {
         allow create, update, delete: if canWriteAcademicRecords(schoolId)
           && idMatches('homeworkId', homeworkId)
           && immutableOnUpdate('homeworkId');
+
+        match /submissions/{submissionId} {
+          allow read: if canWriteAcademicRecords(schoolId)
+            || request.auth.uid == submissionId
+            || isParentLinkedToStudent(schoolId, submissionId);
+          allow create, update: if request.auth.uid == submissionId
+            || canWriteAcademicRecords(schoolId);
+          allow delete: if canWriteAcademicRecords(schoolId);
+        }
       }
 
       match /results/{resultId} {
@@ -222,6 +236,11 @@ service cloud.firestore {
         allow create, update, delete: if canManageSchool(schoolId)
           && idMatches('announcementId', announcementId)
           && immutableOnUpdate('announcementId');
+      }
+
+      match /parent_links/{linkId} {
+        allow read: if canManageSchool(schoolId) || schoolRole(schoolId) == 'PARENT';
+        allow create, update, delete: if canManageSchool(schoolId);
       }
 
       // Denormalized read models for dashboard cards.
@@ -248,6 +267,11 @@ service cloud.firestore {
 
       match /critical_attendance_overrides/{docId} {
         allow read: if canManageSchool(schoolId);
+        allow write: if false;
+      }
+
+      match /notification_queue/{notificationId} {
+        allow read: if canManageSchool(schoolId) || request.auth.uid == resource.data.studentUid;
         allow write: if false;
       }
     }
