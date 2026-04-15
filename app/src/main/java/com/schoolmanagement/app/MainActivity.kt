@@ -26,6 +26,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.schoolmanagement.feature.auth.AuthBackendAdapter
 import com.schoolmanagement.feature.auth.AuthGate
 import com.schoolmanagement.feature.auth.AuthSessionStorage
+import com.schoolmanagement.feature.attendance.AttendanceEntry
 import com.schoolmanagement.feature.dashboard.DashboardEntry
 
 class MainActivity : ComponentActivity() {
@@ -89,7 +90,7 @@ private fun AppShell() {
 
             when (destination) {
                 AppDestination.Dashboard -> DashboardEntry()
-                AppDestination.Attendance -> Text("Attendance feature module")
+                AppDestination.Attendance -> AttendanceEntry()
                 AppDestination.Homework -> Text("Homework feature module")
                 AppDestination.Results -> Text("Results feature module")
                 AppDestination.Notifications -> Text("Notifications feature module")
