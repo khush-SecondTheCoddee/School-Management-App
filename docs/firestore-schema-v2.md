@@ -20,7 +20,9 @@
 - `schools/{schoolId}/attendance/{attendanceId}`
 - `schools/{schoolId}/homework/{homeworkId}`
 - `schools/{schoolId}/results/{resultId}`
+- `schools/{schoolId}/exams/{examId}`
 - `schools/{schoolId}/announcements/{announcementId}`
+- `schools/{schoolId}/results_publish_audit/{auditId}` (append-only, backend controlled)
 
 ### Denormalized read models
 - `schools/{schoolId}/read_models/dashboard_cards/{cardId}`

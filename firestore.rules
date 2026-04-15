@@ -54,7 +54,7 @@ service cloud.firestore {
     function canReadSchoolPath(schoolId, collectionName) {
       return isSchoolMember(schoolId)
         && (
-          collectionName in ['students', 'teachers', 'staff', 'classes', 'attendance', 'homework', 'results', 'announcements', 'read_models', 'results_finalization', 'payroll', 'critical_attendance_overrides']
+          collectionName in ['students', 'teachers', 'staff', 'classes', 'attendance', 'homework', 'results', 'exams', 'announcements', 'read_models', 'results_finalization', 'results_publish_audit', 'payroll', 'critical_attendance_overrides']
         );
     }
 
@@ -109,12 +109,14 @@ service cloud.firestore {
     }
 
     function isValidResultStatus(status) {
-      return status in ['DRAFT', 'PUBLISHED', 'FINALIZED'];
+      return status in ['DRAFT', 'PENDING_APPROVAL', 'PUBLISHED', 'REJECTED', 'FINALIZED'];
     }
 
     function isAllowedResultStatusTransition(fromStatus, toStatus) {
       return toStatus == fromStatus
-        || (fromStatus == 'DRAFT' && toStatus in ['PUBLISHED', 'FINALIZED'])
+        || (fromStatus == 'DRAFT' && toStatus in ['PENDING_APPROVAL', 'PUBLISHED', 'FINALIZED'])
+        || (fromStatus == 'PENDING_APPROVAL' && toStatus in ['PUBLISHED', 'REJECTED'])
+        || (fromStatus == 'REJECTED' && toStatus == 'DRAFT')
         || (fromStatus == 'PUBLISHED' && toStatus == 'FINALIZED');
     }
 
@@ -128,6 +130,14 @@ service cloud.firestore {
             || isAllowedResultStatusTransition(resource.data.status, request.resource.data.status)
           )
         );
+    }
+
+
+    function isNotPublishedOrUnchanged() {
+      return resource == null
+        || !('status' in resource.data)
+        || resource.data.status != 'PUBLISHED'
+        || request.resource.data == resource.data;
     }
 
     function isValidAttendanceStatus(status) {
@@ -214,7 +224,15 @@ service cloud.firestore {
           && idMatches('resultId', resultId)
           && immutableOnUpdate('resultId')
           && hasValidMarkRange()
-          && hasValidResultStatusTransition();
+          && hasValidResultStatusTransition()
+          && isNotPublishedOrUnchanged();
+      }
+
+      match /exams/{examId} {
+        allow read: if canReadSchoolPath(schoolId, 'exams');
+        allow create, update, delete: if canWriteAcademicRecords(schoolId)
+          && idMatches('examId', examId)
+          && immutableOnUpdate('examId');
       }
 
       match /announcements/{announcementId} {
@@ -239,6 +257,13 @@ service cloud.firestore {
       match /results_finalization/{docId} {
         allow read: if canReadSchoolPath(schoolId, 'results_finalization');
         allow write: if false;
+      }
+
+      // Append-only immutable publish trail for result releases.
+      match /results_publish_audit/{auditId} {
+        allow read: if canManageSchool(schoolId);
+        allow create: if false;
+        allow update, delete: if false;
       }
 
       match /payroll/{docId} {
